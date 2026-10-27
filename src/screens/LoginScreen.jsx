@@ -7,13 +7,17 @@ export default function LoginScreen({ setAuthPage }){
   const { auth } = useContext(FirebaseContext);
   const [error,setError]=useState('');
 
-  const handleGuest = async ()=>{
+  const handleGuest = async () => {
     try {
-      await signInAnonymously(auth);
-    } catch(e){
-      console.error(e); setError('Guest login failed');
+      setError(null);
+      const userCredential = await signInAnonymously(auth);
+      console.log('Signed in anonymously:', userCredential.user.uid);
+    } catch (error) {
+      console.error('Guest login error:', error.code, error.message);
+      setError(`Guest login failed: ${error.message}`);
     }
   };
+
   const handleGoogle = async ()=>{
     try {
       const provider = new GoogleAuthProvider();

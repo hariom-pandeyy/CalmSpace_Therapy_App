@@ -1,48 +1,58 @@
-import React, { createContext, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// firebase config should be injected into the environment or window as __firebase_config
-const rawConf = typeof __firebase_config !== 'undefined' ? __firebase_config : (window.__firebase_config || '{}');
-let parsedConf = {};
-try { parsedConf = JSON.parse(rawConf || '{}'); } catch(e) { parsedConf = {}; }
+// Named export required by your screens:
+export const FirebaseContext = createContext({ auth: null, db: null, user: null, loading: true });
 
-// Build config from Vite env as a fallback (import.meta.env is available in Vite dev/build)
-const envConfig = {
+// Build config from Vite env vars (safe fallback if values missing)
+const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
-// remove undefined keys
-const filteredEnvConfig = Object.fromEntries(Object.entries(envConfig).filter(([,v])=>v));
-
-let firebaseConfig = {};
-if (Object.keys(parsedConf).length) {
-  firebaseConfig = parsedConf;
-} else if (Object.keys(filteredEnvConfig).length) {
-  firebaseConfig = filteredEnvConfig;
-}
 
 let app = null;
-let auth = null;
-let db = null;
-
-if (firebaseConfig && firebaseConfig.apiKey) {
+if (getApps().length > 0) {
+  app = getApps()[0];
+} else if (firebaseConfig && firebaseConfig.apiKey) {
   app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-} else {
-  console.warn('Firebase not initialized: no config found. Provide window.__firebase_config in index.html or set VITE_ env vars.');
 }
 
-export const FirebaseContext = createContext({ app, auth, db });
+const auth = app ? getAuth(app) : null;
+const db = app ? getFirestore(app) : null;
 
-export const FirebaseProvider = ({ children }) => {
-  const value = useMemo(() => ({ app, auth, db }), []);
-  return <FirebaseContext.Provider value={value}>{children}</FirebaseContext.Provider>
+export function FirebaseProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!auth) {
+      // no firebase configured — stop loading so app can render (avoid white screen)
+      setLoading(false);
+      return;
+    }
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u || null);
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
+
+  return (
+    <FirebaseContext.Provider value={{ auth, db, user, loading }}>
+      {children}
+    </FirebaseContext.Provider>
+  );
+}
+
+export function useFirebase() {
+  const ctx = useContext(FirebaseContext);
+  if (!ctx) throw new Error('useFirebase must be used within FirebaseProvider');
+  return ctx;
 }

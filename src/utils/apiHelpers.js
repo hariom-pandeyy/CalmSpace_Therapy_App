@@ -17,3 +17,44 @@ export async function fetchWithRetry(url, opts={}, retries=3, delay=1000){
   }
   throw new Error('Max retries reached');
 }
+
+async function waitForSuccessfulPing(socketProtocol2, hostAndPath, ms = 1e3) {
+  const pingHostProtocol = socketProtocol2 === "wss" ? "https" : "http";
+  
+  const ping = async () => {
+    try {
+      const response = await fetch(`${pingHostProtocol}://${hostAndPath}`, {
+        mode: "no-cors",
+        headers: {
+          Accept: "text/x-vite-ping"
+        },
+        // Add timeout to prevent hanging
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (response.type === 'opaque') {
+        return true; // no-cors mode returns opaque response
+      }
+      return true;
+    } catch (error) {
+      console.error('Ping failed:', error.message);
+      return false;
+    }
+  };
+
+  // Add retry logic
+  const retry = async (attempts = 3) => {
+    for (let i = 0; i < attempts; i++) {
+      if (await ping()) {
+        return true;
+      }
+      // Wait between retries
+      await new Promise(resolve => setTimeout(resolve, ms));
+    }
+    return false;
+  };
+
+  return retry();
+}
+
+export { waitForSuccessfulPing };
