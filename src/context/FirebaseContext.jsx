@@ -6,7 +6,7 @@ import { getFirestore } from 'firebase/firestore';
 // Named export required by your screens:
 export const FirebaseContext = createContext({ auth: null, db: null, user: null, loading: true });
 
-// Build config from Vite env vars (safe fallback if values missing)
+// Build config from Vite env vars
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -33,15 +33,14 @@ export function FirebaseProvider({ children }) {
 
   useEffect(() => {
     if (!auth) {
-      // no firebase configured — stop loading so app can render (avoid white screen)
-      setLoading(false);
+      setLoading(false); // render app even if firebase not configured
       return;
     }
-    const unsub = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u || null);
       setLoading(false);
     });
-    return unsub;
+    return unsubscribe;
   }, []);
 
   return (
@@ -52,7 +51,5 @@ export function FirebaseProvider({ children }) {
 }
 
 export function useFirebase() {
-  const ctx = useContext(FirebaseContext);
-  if (!ctx) throw new Error('useFirebase must be used within FirebaseProvider');
-  return ctx;
+  return useContext(FirebaseContext);
 }

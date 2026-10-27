@@ -29,7 +29,7 @@ function App(){
 
           {/* Simple auth modal flow for Login/Landing */}
           {authPage === 'landing' && <LandingScreen setAuthPage={setAuthPage} />}
-          {authPage === 'login' && <LoginScreen setAuthPage={setAuthPage} />}
+          {authPage === 'login' && <LoginScreen setAuthPage={setAuthPage} setCurrentPage={setCurrentPage} />}
 
           <BottomNavBar currentPage={currentPage} setCurrentPage={setCurrentPage} />
         </div>
