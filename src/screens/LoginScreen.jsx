@@ -52,7 +52,7 @@ export default function LoginScreen({ setAuthPage, setCurrentPage }){
       console.error(e);
       // If popup blocked or CORS, fallback to redirect
       if (e.code === 'auth/popup-blocked' || e.code === 'auth/web-storage-unsupported' || e.code === 'auth/cancelled-popup-request') {
-        setError('Popup blocked — try allowing popups or use a different browser. Falling back to redirect...');
+        setError('Popup blocked – try allowing popups or use a different browser. Falling back to redirect...');
         try {
           // fallback: redirect flow (avoids some popup issues)
           await import('firebase/auth').then(({ signInWithRedirect }) => signInWithRedirect(auth, new GoogleAuthProvider()));
@@ -67,19 +67,40 @@ export default function LoginScreen({ setAuthPage, setCurrentPage }){
   };
 
   return (
-    <div style={{ position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:50 }}>
-      <div style={{ width:420, padding:18 }} className="card">
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <div style={{ width:64, height:64 }}><HomeLogo/></div>
-          <h2>Welcome to CalmSpace</h2>
+    <div className="auth-modal">
+      <div className="auth-card">
+        <button
+          type="button"
+          className="auth-close"
+          onClick={() => setAuthPage?.(null)}
+          aria-label="Close sign-in dialog"
+        >
+          ✕
+        </button>
+        <div className="auth-card__header">
+          <div className="auth-card__logo">
+            <HomeLogo/>
+          </div>
+          <div>
+            <p className="auth-card__eyebrow">Welcome</p>
+            <h2 className="auth-card__title">Sign in to CalmSpace</h2>
+            <p className="auth-card__sub">Continue where you left off and keep your journey in sync.</p>
+          </div>
         </div>
-        {error && <div style={{ color:'red' }}>{error}</div>}
-        <div style={{ marginTop:12 }}>
-          <button className="button" onClick={handleGoogle} style={{ background:'#fff', color:'#333', marginBottom:8 }}>Sign in with Google</button>
-          <button className="button" onClick={handleGuest}>Continue as Guest</button>
-        </div>
-        <div style={{ marginTop:8 }}>
-          <button onClick={()=>setAuthPage('landing')}>← Back to Home</button>
+        {error && <div className="auth-card__error">{error}</div>}
+        <div className="auth-card__actions">
+          <button
+            className="auth-card__button auth-card__button--outline"
+            onClick={handleGoogle}
+          >
+            Sign in with Google
+          </button>
+          <button
+            className="auth-card__button auth-card__button--primary"
+            onClick={handleGuest}
+          >
+            Continue as Guest
+          </button>
         </div>
       </div>
     </div>

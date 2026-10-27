@@ -11,25 +11,91 @@ export default function ChatbotScreen(){
 
   useEffect(()=>{ endRef.current?.scrollIntoView({ behavior:'smooth' }); }, [messages, loading]);
 
+  const extractTextFromResponse = (data) => {
+    if (!data) return null;
+    if (typeof data === 'string') return data;
+    if (data.candidates && data.candidates.length) {
+      const c = data.candidates[0];
+      if (c.output) return c.output;
+      if (Array.isArray(c.content)) {
+        return c.content.map(i => i.text || i.output || '').join('') || null;
+      }
+      if (c.content?.parts?.length) {
+        const combined = c.content.parts.map(part => part.text || part.output || '').join('').trim();
+        if (combined) return combined;
+      }
+      if (c.text) return c.text;
+    }
+    if (data.output && data.output.length) {
+      return data.output.map(o=> (o.content||[]).map(c=>c.text||'').join('')).join('\n') || null;
+    }
+    if (data.result && data.result.output) {
+      return JSON.stringify(data.result.output);
+    }
+    if (data.text) return data.text;
+    return JSON.stringify(data);
+  };
+
   const handleSend = async ()=>{
     if(!input.trim() || loading) return;
     const userMsg = { role:'user', text: input };
     setMessages(m=>[...m, userMsg]);
     setInput(''); setLoading(true);
+
     try{
-      const apiKey = typeof __GEMINI_API_KEY !== 'undefined' ? __GEMINI_API_KEY : (window.__GEMINI_API_KEY || '');
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-      const payload = { /* keep payload minimal for demo */ };
-      // Use fetchWithRetry for robust calls; here we only show structure
-      // const res = await fetchWithRetry(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      // const data = await res.json();
-      // const botText = data.candidates?.[0]?.content?.[0]?.text || "Sorry, I couldn't reach the assistant.";
+      const useProxy = import.meta.env.VITE_USE_PROXY === 'true';
+      let data;
 
-      // For safety demo (no real API call), echo:
-      const botText = "This is a simulated CalmBot response (API key not provided).";
+      if (useProxy) {
+        const res = await fetchWithRetry('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: input })
+        });
 
+        // Check if response is OK
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error('Proxy error response:', errorData);
+          setMessages(m=>[...m, { role:'model', text: `Proxy error: ${errorData.error || 'Unknown error'}` }]);
+          setLoading(false);
+          return;
+        }
+
+        data = await res.json();
+      } else {
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+        if (!apiKey) {
+          setMessages(m=>[...m, { role:'model', text: "API key missing. Set VITE_GEMINI_API_KEY or enable proxy." }]);
+          setLoading(false);
+          return;
+        }
+        const url = `https://generativelanguage.googleapis.com/v1/models/text-bison-001:generateText?key=${apiKey}`;
+        const payload = { prompt: { text: input } };
+        const res = await fetchWithRetry(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        // Check if response is OK
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error('API error response:', errorData);
+          setMessages(m=>[...m, { role:'model', text: `API error: ${errorData.error || 'Unknown error'}` }]);
+          setLoading(false);
+          return;
+        }
+
+        data = await res.json();
+      }
+
+      const botText = extractTextFromResponse(data) || "Sorry, couldn't parse assistant response.";
       setMessages(m=>[...m, { role:'model', text: botText }]);
-    }catch(e){ console.error(e); setMessages(m=>[...m, { role:'model', text: 'Error: failed to get response.' }]); }
+    }catch(e){
+      console.error('Chatbot error', e);
+      setMessages(m=>[...m, { role:'model', text: 'Error: failed to get response. See console.' }]);
+    }
     setLoading(false);
   };
 
