@@ -1,0 +1,7 @@
+@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+.loader-spin { border: 4px solid rgba(147,197,253,0.3); border-top:4px solid #3B82F6; border-radius:50%; width:50px; height:50px; animation: spin 1s linear infinite; }
+
+@keyframes draw-line { from { stroke-dashoffset: 1000 } to { stroke-dashoffset: 0 } }
+.mood-path { stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: draw-line 2s ease-out forwards; }
+@keyframes fade-in-dot { from { opacity:0; transform:scale(0.5)} to { opacity:1; transform:scale(1)} }
+.mood-dot { animation: fade-in-dot 0.5s ease-out forwards; }

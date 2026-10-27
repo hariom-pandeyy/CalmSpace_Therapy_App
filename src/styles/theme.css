@@ -1,0 +1,10 @@
+/* Minimal utility classes to keep layout readable if user doesn't use Tailwind instantly.
+   For full UI keep using Tailwind; this file only ensures demo runs without Tailwind installed. */
+
+:root{ --blue-500:#3b82f6; --purple-500:#8b5cf6; --gray-800:#1f2937; --gray-500:#6b7280; }
+
+body { margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: linear-gradient(135deg,#e6f0ff,#f3e8ff); color:var(--gray-800); }
+
+.container { max-width: 1024px; margin:0 auto; padding:1rem; }
+.card { background: #fff; border-radius: 16px; box-shadow: 0 6px 18px rgba(2,6,23,0.06); }
+.button { background: var(--blue-500); color: white; padding: 0.6rem 1rem; border-radius: 12px; cursor: pointer; }
