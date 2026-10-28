@@ -58,43 +58,51 @@ const styles = {
     gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
   },
   moodButton: active => ({
-    borderRadius: 20,
-    padding: '14px 16px',
-    textAlign: 'left',
-    border: '1px solid rgba(99,102,241,0.12)',
-    background: active ? 'linear-gradient(120deg,#c7d2fe 0%,#e0f2fe 100%)' : '#f8fafc',
-    color: '#1e293b',
+    borderRadius: 18,
+    padding: '16px 14px',
+    border: active ? '2px solid #6366f1' : '1px solid rgba(148, 163, 184, 0.35)',
+    background: active ? 'rgba(99, 102, 241, 0.08)' : '#f8fafc',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    alignItems: 'center',
+    textAlign: 'center',
     cursor: 'pointer',
-    transition: 'transform 0.2s ease, box-shadow 0.2s ease, border 0.2s ease',
-    boxShadow: active ? '0 16px 30px rgba(99, 102, 241, 0.18)' : '0 0 0 rgba(0,0,0,0)',
+    transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
   }),
+  moodEmoji: {
+    fontSize: 28,
+  },
   moodTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 600,
-    color: '#312e81',
-    marginBottom: 4,
+    color: '#1e1b4b',
   },
   moodDesc: {
-    fontSize: 13,
-    color: '#475569',
+    fontSize: 12,
+    color: '#64748b',
     lineHeight: 1.4,
   },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 18,
+  },
   textarea: {
-    width: '100%',
-    minHeight: 160,
-    borderRadius: 20,
-    border: '1px solid rgba(148,163,184,0.4)',
+    borderRadius: 18,
+    border: '1px solid rgba(148,163,184,0.35)',
     padding: '18px 20px',
     fontSize: 15,
+    minHeight: 160,
+    lineHeight: 1.6,
     resize: 'vertical',
-    color: '#0f172a',
-    background: '#f8fafc',
-    boxShadow: 'inset 0 1px 3px rgba(15,23,42,0.04)',
+    outline: 'none',
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
   },
-  primaryAction: disabled => ({
+  saveButton: disabled => ({
     border: 'none',
-    borderRadius: 999,
-    padding: '14px 24px',
+    borderRadius: 18,
+    padding: '16px 24px',
     fontSize: 15,
     fontWeight: 600,
     cursor: disabled ? 'not-allowed' : 'pointer',
@@ -168,53 +176,87 @@ const moodOptions = [
 ];
 
 const formatDate = (value, withTime = false) => {
-  if (!value) return 'Unknown date';
+  if (!value) return 'Just now';
   const date = value.toDate ? value.toDate() : new Date(value);
   const options = withTime
     ? { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }
     : { month: 'long', day: 'numeric', year: 'numeric' };
-  return date.toLocaleString(undefined, options);
+  return isNaN(date.getTime()) ? 'Just now' : date.toLocaleString(undefined, options);
 };
 
 export default function JournalScreen() {
   const { db, auth } = useContext(FirebaseContext);
-  const [entries, setEntries] = useState([]);
+  const [entries, setEntries] = useState(() => {
+    try {
+      const saved = localStorage.getItem('calmspace_journals');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [newEntry, setNewEntry] = useState('');
   const [mood, setMood] = useState(3);
   const [loading, setLoading] = useState(false);
 
-  const userName = auth?.currentUser?.isAnonymous ? 'Guest' : auth?.currentUser?.displayName?.split(' ')[0] || 'Friend';
-
   useEffect(() => {
     if (!auth?.currentUser || !db) return;
-    const journalRef = collection(db, `artifacts/default-calmspace-app/users/${auth.currentUser.uid}/journalEntries`);
-    const q = query(journalRef);
-    const unsub = onSnapshot(q, snap => {
-      const fetched = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => (b.date?.toMillis?.() || 0) - (a.date?.toMillis?.() || 0));
-      setEntries(fetched);
-    });
-    return unsub;
+    try {
+      const journalRef = collection(db, `artifacts/default-calmspace-app/users/${auth.currentUser.uid}/journalEntries`);
+      const q = query(journalRef);
+      const unsub = onSnapshot(q, snap => {
+        if (!snap.empty) {
+          const fetched = snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+          setEntries(fetched);
+          localStorage.setItem('calmspace_journals', JSON.stringify(fetched));
+        }
+      }, err => console.warn('Firestore journal listener warning:', err));
+      return unsub;
+    } catch (e) {
+      console.warn('Firestore journal setup error:', e);
+    }
   }, [db, auth]);
 
   const selectedMood = useMemo(() => moodOptions.find(option => option.value === mood), [mood]);
 
   const save = async () => {
-    if (!newEntry.trim() || !auth?.currentUser || !db) return;
+    const text = newEntry.trim();
+    if (!text) return;
     setLoading(true);
-    try {
-      const journalRef = collection(db, `artifacts/default-calmspace-app/users/${auth.currentUser.uid}/journalEntries`);
-      await addDoc(journalRef, {
-        text: newEntry.trim(),
-        mood,
-        date: new Date(),
-      });
-      setNewEntry('');
-      setMood(3);
-    } catch (e) {
-      console.error(e);
+
+    const newJournal = {
+      id: 'journal-' + Date.now(),
+      text,
+      mood,
+      date: new Date().toISOString()
+    };
+
+    setEntries(prev => {
+      const updated = [newJournal, ...prev];
+      try {
+        localStorage.setItem('calmspace_journals', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Storage journal save error', e);
+      }
+      return updated;
+    });
+    setNewEntry('');
+    setMood(3);
+
+    if (auth?.currentUser && db) {
+      try {
+        const journalRef = collection(db, `artifacts/default-calmspace-app/users/${auth.currentUser.uid}/journalEntries`);
+        await addDoc(journalRef, {
+          text,
+          mood,
+          date: new Date(),
+        });
+      } catch (e) {
+        console.warn('Firestore journal save error:', e);
+      }
     }
+
     setLoading(false);
   };
 
@@ -222,102 +264,87 @@ export default function JournalScreen() {
     <div style={styles.page}>
       <div style={styles.content}>
         <section style={styles.hero}>
-          <h1 style={styles.heroTitle}>Daily Reflection</h1>
+          <h1 style={styles.heroTitle}>Mindful Reflection Journal</h1>
           <p style={styles.heroSubtitle}>
-            Hi {userName}, give yourself two mindful minutes. Select a mood, capture the moment, and track how your emotional landscape evolves.
+            Capture what’s on your heart without filter or expectation. Expressing yourself builds calm and clarity.
           </p>
         </section>
 
         <section style={styles.layout}>
-          <article style={styles.card}>
-            <header>
-              <h2 style={styles.sectionTitle}>How are you arriving right now?</h2>
-              <p style={styles.sectionSubtitle}>Choose the mood that resonates and jot down anything on your mind.</p>
-            </header>
-
-            <div style={styles.moodGrid}>
-              {moodOptions.map(option => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setMood(option.value)}
-                  style={styles.moodButton(option.value === mood)}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 16px 28px rgba(99, 102, 241, 0.18)';
-                  }}
-                  onMouseLeave={e => {
-                    const active = option.value === mood;
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = active ? '0 16px 30px rgba(99, 102, 241, 0.18)' : '0 0 0 rgba(0,0,0,0)';
-                  }}
-                >
-                  <div style={{ ...styles.moodTitle, color: option.accent }}>{option.title}</div>
-                  <div style={styles.moodDesc}>{option.description}</div>
-                </button>
-              ))}
+          <div style={styles.card}>
+            <div>
+              <h2 style={styles.sectionTitle}>Check in with yourself</h2>
+              <p style={styles.sectionSubtitle}>
+                Select the emotion that feels closest right now.
+              </p>
             </div>
 
-            <textarea
-              value={newEntry}
-              onChange={e => setNewEntry(e.target.value)}
-              placeholder="Take a breath, and write what stands out for you today…"
-              style={styles.textarea}
-            />
+            <div style={styles.moodGrid}>
+              {moodOptions.map(option => {
+                const active = option.value === mood;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setMood(option.value)}
+                    style={styles.moodButton(active)}
+                  >
+                    <span style={styles.moodEmoji}>{['🌧️', '⛅', '🌿', '🌤️', '✨'][option.value - 1]}</span>
+                    <span style={styles.moodTitle}>{option.title}</span>
+                    <span style={styles.moodDesc}>{option.description}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-            <footer style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-              <div style={{ color: '#475569', fontSize: 14 }}>
-                {selectedMood ? `${selectedMood.title} • ${selectedMood.description}` : 'Select how you feel to personalize this entry.'}
-              </div>
+            <div style={styles.form}>
+              <textarea
+                value={newEntry}
+                onChange={e => setNewEntry(e.target.value)}
+                placeholder="What is present for you today? What thoughts or feelings would benefit from a gentle release?"
+                style={styles.textarea}
+              />
               <button
                 type="button"
                 onClick={save}
                 disabled={loading || !newEntry.trim()}
-                style={styles.primaryAction(loading || !newEntry.trim())}
-                onMouseEnter={e => {
-                  if (loading || !newEntry.trim()) return;
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 18px 40px rgba(99, 102, 241, 0.36)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = styles.primaryAction(false).boxShadow;
-                }}
+                style={styles.saveButton(loading || !newEntry.trim())}
               >
                 {loading ? 'Saving...' : 'Save reflection'}
               </button>
-            </footer>
-          </article>
-
-          <aside style={styles.card}>
-            <header>
-              <h2 style={styles.sectionTitle}>Your reflections</h2>
-              <p style={styles.sectionSubtitle}>Revisit how you felt and what you noticed. Progress is quieter than we think.</p>
-            </header>
-
-            <div style={styles.entriesWrapper}>
-              {entries.length ? (
-                entries.map(entry => {
-                  const moodMeta = moodOptions.find(option => option.value === entry.mood);
-                  return (
-                    <div key={entry.id} style={{ ...styles.entryCard, borderLeft: `6px solid ${moodMeta?.accent || '#6366f1'}` }}>
-                      <div style={styles.entryHeader}>
-                        <span style={styles.entryMeta}>{formatDate(entry.date, true)}</span>
-                        {moodMeta ? (
-                          <span style={{ fontSize: 13, fontWeight: 600, color: moodMeta.accent }}>{moodMeta.title}</span>
-                        ) : null}
-                      </div>
-                      <div style={styles.entryText}>{entry.text}</div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div style={styles.emptyState}>
-                  Your journal is still blank. Your thoughts do not need to be perfect—just honest. Start with a few words about what you notice right now.
-                </div>
-              )}
             </div>
-          </aside>
+          </div>
+
+          <div style={styles.card}>
+            <div>
+              <h2 style={styles.sectionTitle}>Past reflections</h2>
+              <p style={styles.sectionSubtitle}>
+                Notice your shifts, gentle patterns, and progress across time.
+              </p>
+            </div>
+
+            {entries.length === 0 ? (
+              <div style={styles.emptyState}>
+                Your reflections will gather here. Write your first thought to begin.
+              </div>
+            ) : (
+              <div style={styles.entriesWrapper}>
+                {entries.map(entry => (
+                  <div key={entry.id} style={styles.entryCard}>
+                    <div style={styles.entryHeader}>
+                      <span style={styles.entryMeta}>
+                        {formatDate(entry.date, true)}
+                      </span>
+                      <span style={{ fontSize: 13, color: '#4338ca', fontWeight: 600 }}>
+                        {moodOptions.find(m => m.value === entry.mood)?.title || 'Steady'}
+                      </span>
+                    </div>
+                    <p style={styles.entryText}>{entry.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
       </div>
     </div>
