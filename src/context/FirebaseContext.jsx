@@ -15,21 +15,21 @@ export const FirebaseContext = createContext({
   logoutDemo: () => {}
 });
 
-// Build config from Vite env vars
+// Primary direct config with Vite env fallback
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCq_l8XBBIIezC-jFH5K_icw64rkM4DnAo",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "calmspace-therapy.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "calmspace-therapy",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "calmspace-therapy.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "130104206465",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:130104206465:web:90a221d8f7729e6ed0d980",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-E0MD2QPVPM"
 };
 
 let app = null;
 if (getApps().length > 0) {
   app = getApps()[0];
-} else if (firebaseConfig && firebaseConfig.apiKey) {
+} else {
   try {
     app = initializeApp(firebaseConfig);
   } catch (e) {
