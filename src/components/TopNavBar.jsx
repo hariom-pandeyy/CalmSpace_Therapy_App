@@ -1,4 +1,4 @@
-import React, { useContext, useMemo } from 'react';
+﻿import React, { useContext, useMemo } from 'react';
 import { signOut } from 'firebase/auth';
 import { PAGES } from '../utils/constants';
 import { FirebaseContext } from '../context/FirebaseContext';
@@ -28,14 +28,16 @@ export default function TopNavBar({
     setCurrentPage?.(PAGES.HOME);
   };
 
-  const handleLogout = async () => {
-    if (!auth) return;
-    try {
-      await signOut(auth);
-      setCurrentPage?.(PAGES.HOME);
-    } catch (error) {
-      console.error('Failed to sign out', error);
+    const handleLogout = async () => {
+    logoutDemo?.();
+    if (auth) {
+      try {
+        await signOut(auth);
+      } catch (error) {
+        console.error('Failed to sign out', error);
+      }
     }
+    setCurrentPage?.(PAGES.HOME);
   };
 
   return (
