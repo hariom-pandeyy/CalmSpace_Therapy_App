@@ -1,4 +1,4 @@
-﻿import React, { useContext, useMemo } from 'react';
+import React, { useContext, useMemo } from 'react';
 import { signOut } from 'firebase/auth';
 import { PAGES } from '../utils/constants';
 import { FirebaseContext } from '../context/FirebaseContext';
@@ -17,7 +17,7 @@ export default function TopNavBar({
   setCurrentPage,
   setAuthPage
 }) {
-  const { auth, user } = useContext(FirebaseContext);
+  const { auth, user, logoutDemo } = useContext(FirebaseContext);
   const isAuthenticated = useMemo(() => Boolean(user), [user]);
 
   const handleGetStarted = () => {
@@ -28,16 +28,17 @@ export default function TopNavBar({
     setCurrentPage?.(PAGES.HOME);
   };
 
-    const handleLogout = async () => {
-    logoutDemo?.();
-    if (auth) {
-      try {
+  const handleLogout = async () => {
+    try {
+      logoutDemo?.();
+      if (auth) {
         await signOut(auth);
-      } catch (error) {
-        console.error('Failed to sign out', error);
       }
+    } catch (error) {
+      console.warn('Sign out warning', error);
     }
     setCurrentPage?.(PAGES.HOME);
+    setAuthPage?.('login');
   };
 
   return (
@@ -64,7 +65,7 @@ export default function TopNavBar({
           </ul>
         </div>
         <div className="top-nav__actions">
-          {isAuthenticated && (
+          {isAuthenticated ? (
             <button
               type="button"
               onClick={handleLogout}
@@ -72,14 +73,15 @@ export default function TopNavBar({
             >
               Logout
             </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleGetStarted}
+              className="top-nav__cta"
+            >
+              Sign In
+            </button>
           )}
-          <button
-            type="button"
-            onClick={handleGetStarted}
-            className="top-nav__cta"
-          >
-            Get Started
-          </button>
         </div>
       </nav>
     </header>
