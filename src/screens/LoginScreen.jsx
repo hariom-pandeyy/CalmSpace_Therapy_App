@@ -7,6 +7,7 @@ import { PAGES } from '../utils/constants';
 export default function LoginScreen({ setAuthPage, setCurrentPage }){
   const { auth, loginDemoGuest, loginDemoGoogle } = useContext(FirebaseContext);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const closeAndGoHome = () => {
     if (typeof setAuthPage === 'function') setAuthPage(null); // hide login card
@@ -15,43 +16,61 @@ export default function LoginScreen({ setAuthPage, setCurrentPage }){
 
   const handleGuest = async () => {
     setError(null);
-    if (!auth) {
-      // Smart Presentation Fallback: Log in as Guest seamlessly
-      loginDemoGuest?.();
-      closeAndGoHome();
-      return;
+    setLoading(true);
+
+    if (auth) {
+      try {
+        const cred = await signInAnonymously(auth);
+        console.log('Firebase anonymous signin success:', cred.user.uid);
+        closeAndGoHome();
+        return;
+      } catch (e) {
+        console.warn('Firebase anonymous error, falling back to guest mode:', e);
+      }
     }
 
-    try {
-      const cred = await signInAnonymously(auth);
-      console.log('Signed in anonymously:', cred.user.uid);
-      closeAndGoHome();
-    } catch (e) {
-      console.warn('Firebase guest signin fallback:', e);
-      loginDemoGuest?.();
-      closeAndGoHome();
-    }
+    // Seamless fallback
+    loginDemoGuest?.();
+    closeAndGoHome();
+    setLoading(false);
   };
 
   const handleGoogle = async () => {
     setError(null);
-    if (!auth) {
-      // Smart Presentation Fallback: Log in as Google User seamlessly
-      loginDemoGoogle?.();
-      closeAndGoHome();
-      return;
+    setLoading(true);
+
+    if (auth) {
+      try {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        const result = await signInWithPopup(auth, provider);
+        console.log('Google popup signin success:', result.user.uid);
+        closeAndGoHome();
+        return;
+      } catch (e) {
+        console.error('Google popup signin error:', e.code, e.message);
+        // If user actively cancelled popup, show clean message
+        if (e.code === 'auth/popup-closed-by-user') {
+          setError('Google sign-in was cancelled.');
+          setLoading(false);
+          return;
+        }
+        // If domain not authorized or popup blocked, inform or use fallback
+        if (e.code === 'auth/unauthorized-domain') {
+          setError('Vercel domain not authorized in Firebase Console -> Authentication -> Settings -> Authorized domains.');
+          // Still allow demo login so presentation does not break
+          setTimeout(() => {
+            loginDemoGoogle?.();
+            closeAndGoHome();
+          }, 1200);
+          return;
+        }
+      }
     }
 
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      console.log('Google sign-in success:', result.user.uid);
-      closeAndGoHome();
-    } catch(e) {
-      console.warn('Firebase google signin fallback:', e);
-      loginDemoGoogle?.();
-      closeAndGoHome();
-    }
+    loginDemoGoogle?.();
+    closeAndGoHome();
+    setLoading(false);
   };
 
   return (
@@ -80,12 +99,14 @@ export default function LoginScreen({ setAuthPage, setCurrentPage }){
           <button
             className="auth-card__button auth-card__button--outline"
             onClick={handleGoogle}
+            disabled={loading}
           >
-            Sign in with Google
+            {loading ? 'Connecting...' : 'Sign in with Google'}
           </button>
           <button
             className="auth-card__button auth-card__button--primary"
             onClick={handleGuest}
+            disabled={loading}
           >
             Continue as Guest
           </button>
